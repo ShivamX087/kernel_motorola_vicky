@@ -9601,6 +9601,10 @@ static struct sched_group *find_busiest_group(struct lb_env *env)
 	local = &sds.local_stat;
 	busiest = &sds.busiest_stat;
 
+	/* if cpu was isolated, then discard load balance*/
+	if (local->group_capacity == 0 || busiest->group_capacity == 0)
+		goto out_balanced;
+
 	/* There is no busy sibling group to pull tasks from */
 	if (!sds.busiest)
 		goto out_balanced;
