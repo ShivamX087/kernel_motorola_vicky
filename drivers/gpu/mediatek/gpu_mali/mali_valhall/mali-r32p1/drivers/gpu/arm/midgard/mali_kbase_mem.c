@@ -4732,7 +4732,10 @@ struct kbase_mem_phy_alloc *kbase_map_external_resource(
 		break;
 	}
 	default:
-		goto exit;
+		dev_dbg(kctx->kbdev->dev,
+			"Invalid external resource GPU allocation type (%x) on mapping",
+			alloc->type);
+		return -EINVAL;
 	}
 
 	return kbase_mem_phy_alloc_get(reg->gpu_alloc);
