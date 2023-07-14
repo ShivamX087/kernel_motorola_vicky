@@ -688,7 +688,16 @@ void kbase_csf_queue_terminate(struct kbase_context *kctx,
 			queue->queue_reg->flags &= ~KBASE_REG_NO_USER_FREE;
 		}
 		kbase_gpu_vm_unlock(kctx);
-
+		mutex_unlock(&kctx->csf.lock);
+		/* The GPU reset can be allowed now as the queue has been unbound. */
+		if (reset_prevented) {
+			kbase_reset_gpu_allow(kbdev);
+			reset_prevented = false;
+		}
+		/* The work items can be cancelled as Userspace is terminating the queue */
+		cancel_work_sync(&queue->oom_event_work);
+		cancel_work_sync(&queue->fatal_event_work);
+		mutex_lock(&kctx->csf.lock);
 		spin_lock_irqsave(&kctx->csf.event_lock, flags);
 		dev_dbg(kctx->kbdev->dev,
 			"Remove any pending command queue fatal from context %pK\n",
@@ -2267,7 +2276,6 @@ static void oom_event_worker(struct work_struct *data)
 	mutex_lock(&kctx->csf.lock);
 
 	kbase_queue_oom_event(queue);
-	release_queue(queue);
 
 	mutex_unlock(&kctx->csf.lock);
 	kbase_reset_gpu_allow(kbdev);
@@ -2474,7 +2482,6 @@ static void fatal_event_worker(struct work_struct *const data)
 				 group_handle);
 
 unlock:
-	release_queue(queue);
 	mutex_unlock(&kctx->csf.lock);
 	if (reset_prevented)
 		kbase_reset_gpu_allow(kbdev);
@@ -2525,11 +2532,16 @@ handle_fatal_event(struct kbase_queue *const queue,
 			CS_FATAL_EXCEPTION_TYPE_FIRMWARE_INTERNAL_ERROR) {
 		queue_work(system_wq, &kbdev->csf.fw_error_work);
 	} else {
-		get_queue(queue);
+                if (cs_fatal_exception_type ==
+		    CS_FATAL_EXCEPTION_TYPE_CS_UNRECOVERABLE) {
+			queue->group->cs_unrecoverable = true;
+			if (kbase_prepare_to_reset_gpu(queue->kctx->kbdev,
+						       RESET_FLAGS_NONE))
+				kbase_reset_gpu(queue->kctx->kbdev);
+		}
 		queue->cs_fatal = cs_fatal;
 		queue->cs_fatal_info = cs_fatal_info;
-		if (!queue_work(queue->kctx->csf.wq, &queue->fatal_event_work))
-			release_queue(queue);
+		queue_work(queue->kctx->csf.wq, &queue->fatal_event_work);
 	}
 }
 
@@ -2637,7 +2649,6 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
 
 			if (((cs_req & CS_REQ_TILER_OOM_MASK) ^
 			     (cs_ack & CS_ACK_TILER_OOM_MASK))) {
-				get_queue(queue);
 				KBASE_KTRACE_ADD_CSF_GRP_Q(kbdev, CSI_TILER_OOM_INTERRUPT, group, queue,
 							   cs_req ^ cs_ack);
 				if (WARN_ON(!queue_work(wq, &queue->oom_event_work))) {
@@ -2646,7 +2657,11 @@ static void process_cs_interrupts(struct kbase_queue_group *const group,
 					 * one pending OoM event for a
 					 * queue.
 					 */
-					release_queue(queue);
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+					ged_log_buf_print2(
+						kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
+						"OoM event have been already queued\n");
+#endif
 				}
 			}
 
