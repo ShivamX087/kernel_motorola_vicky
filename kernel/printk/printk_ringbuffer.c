@@ -2023,6 +2023,7 @@ u64 prb_next_seq(struct printk_ringbuffer *rb)
 	unsigned long id;
 	u64 seq;
 
+
 	/* Check if the cached @id still points to a valid @seq. */
 	id = atomic_long_read(&desc_ring->last_finalized_id);
 	d_state = desc_read(desc_ring, id, NULL, &seq, NULL);
@@ -2056,19 +2057,6 @@ u64 prb_next_seq(struct printk_ringbuffer *rb)
 
 	return seq;
 }
-
-#ifdef CONFIG_MTK_PRINTK_DEBUG
-u64 prb_next_seq_id(struct printk_ringbuffer *rb, u64 old_seq)
-{
-	u64 seq = old_seq;
-
-	/* Search forward from the oldest descriptor. */
-	while (_prb_read_valid(rb, &seq, NULL, NULL))
-		seq++;
-
-	return seq;
-}
-#endif
 
 /**
  * prb_init() - Initialize a ringbuffer to use provided external buffers.

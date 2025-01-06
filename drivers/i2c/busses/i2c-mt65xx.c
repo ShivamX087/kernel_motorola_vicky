@@ -721,12 +721,7 @@ static void mtk_i2c_init_hw(struct mtk_i2c *i2c)
 
 	if (i2c->dev_comp->timing_adjust) {
 		ext_conf_val = i2c->ac_timing.ext;
-		if (i2c->clk_div_ctrl == true)
-			mtk_i2c_writew(i2c, ((i2c->clk_src_div - 1) << 8) +
-					(i2c->clk_src_div - 1),
-					OFFSET_CLOCK_DIV);
-		else
-			mtk_i2c_writew(i2c, i2c->ac_timing.inter_clk_div,
+		mtk_i2c_writew(i2c, i2c->ac_timing.inter_clk_div,
 			       OFFSET_CLOCK_DIV);
 		mtk_i2c_writew(i2c, I2C_SCL_MIS_COMP_VALUE,
 			       OFFSET_SCL_MIS_COMP_POINT);
