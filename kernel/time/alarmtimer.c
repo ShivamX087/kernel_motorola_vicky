@@ -299,9 +299,12 @@ static int alarmtimer_suspend(struct device *dev)
 	unsigned long flags;
 	struct rtc_time tm;
 	int wakeup_bypass_enabled = 0;
+<<<<<<< HEAD
 #ifdef CONFIG_ALARMTIMER_DEBUG
 	struct rtc_time time;
 #endif
+=======
+>>>>>>> 1430febef27a1ce19fa84c118f570ae595ed4b25
 
 	spin_lock_irqsave(&freezer_delta_lock, flags);
 	min = freezer_delta;
