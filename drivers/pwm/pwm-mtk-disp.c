@@ -74,78 +74,6 @@ static void mtk_disp_pwm_update_bits(struct mtk_disp_pwm *mdp, u32 offset,
 	writel(value, address);
 }
 
-static int get_pwm_src_base(struct device *dev, struct mtk_disp_pwm *mdp)
-{
-	int ret = 0;
-	struct device_node *node;
-	void __iomem *pmw_src_base;
-	u32 addr_offset = 0;
-
-	node = of_parse_phandle(dev->of_node, "pwm_src_base", 0);
-	if (!node) {
-		dev_info(dev, "find pwm_src node failed\n");
-		return -1;
-	}
-	pmw_src_base = of_iomap(node, 0);
-	if (!pmw_src_base) {
-		dev_info(dev, "find pwm_src address failed\n");
-		of_node_put(node);
-		return -1;
-	}
-	ret = of_property_read_u32(dev->of_node, "pwm_src_addr", &addr_offset);
-	if (ret >= 0)
-		mdp->pmw_src_addr = pmw_src_base + addr_offset;
-
-	dev_info(dev, "get pwm_src_addr=%x\n", addr_offset);
-	of_node_put(node);
-	return ret;
-}
-
-static int pwm_src_power_on(struct mtk_disp_pwm *mdp)
-{
-	u32 regosc;
-
-	if (!mdp->pmw_src_addr || mdp->pwm_src_enabled)
-		return 0;
-
-	mdp->pwm_src_enabled = true;
-	regosc = readl(mdp->pmw_src_addr);
-
-	regosc = regosc | 0x1;
-	writel(regosc, mdp->pmw_src_addr);
-	udelay(150);
-
-	regosc = readl(mdp->pmw_src_addr);
-	regosc = regosc | 0x4;
-	writel(regosc, mdp->pmw_src_addr);
-	regosc = readl(mdp->pmw_src_addr);
-
-	return 0;
-}
-
-static int pwm_src_power_off(struct mtk_disp_pwm *mdp)
-{
-	u32 regosc;
-
-	if (!mdp->pmw_src_addr || !mdp->pwm_src_enabled)
-		return 0;
-
-	mdp->pwm_src_enabled = false;
-	regosc = readl(mdp->pmw_src_addr);
-
-	regosc = regosc & (~0x4);
-	writel(regosc, mdp->pmw_src_addr);
-
-	udelay(150);
-	regosc = readl(mdp->pmw_src_addr);
-
-	regosc = regosc & (~0x1);
-	writel(regosc, mdp->pmw_src_addr);
-	regosc = readl(mdp->pmw_src_addr);
-
-	return 0;
-}
-
 static int mtk_disp_pwm_config(struct pwm_chip *chip, struct pwm_device *pwm,
 			       int duty_ns, int period_ns)
 {
@@ -277,7 +205,6 @@ static int mtk_disp_pwm_probe(struct platform_device *pdev)
 {
 	struct mtk_disp_pwm *mdp;
 	struct resource *r;
-	struct clk *pwm_src;
 	int ret;
 
 	dev_info(&pdev->dev, "%s+\n", __func__);
